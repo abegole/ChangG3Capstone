@@ -46,7 +46,7 @@ def image_processing(message_center):
         gender_history.append(gender)
 
 # Compute consensus only if we have enough data
-    if len(gender_history) >= 10:
+    if len(gender_history) >= 1:
         most_common_gender = Counter(gender_history).most_common(1)[0][0]
         message_center.add_face_detection(most_common_gender)
         gender_history.clear()
@@ -118,12 +118,12 @@ def image_processing(message_center):
             
             if green_pixels >= min_green_pixels and green_pixels > red_pixels:
                 status = True
-                # print(f"[INFO] Green")
+                print(f"[INFO] Green")
 
             else:
                 
                 status = False # red light =False, green light = True
-                # print(f"[INFO] Red")
+                print(f"[INFO] Red")
             
             
 
