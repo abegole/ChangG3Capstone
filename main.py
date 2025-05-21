@@ -15,6 +15,11 @@ from utils import *
 from yolo_utils import *
 from gps_utils import *
 from MessageCenter import MessageCenter
+from collections import deque, Counter
+
+# Store recent gender predictions (1: male, 2: female, 0: none)
+gender_history = deque(maxlen=10)  # ~3 seconds at 10 FPS
+
 
 # Given: face_roi is the cropped BGR image
 def preprocess_face(face_roi):
@@ -36,7 +41,16 @@ def image_processing(message_center):
     frame = cv2.cvtColor(frame, cv2.COLOR_RGB2BGR)
 
     gender = face_processing(frame)
-    message_center.add_face_detection(gender)
+
+    if gender > 0:
+        gender_history.append(gender)
+
+# Compute consensus only if we have enough data
+    if len(gender_history) >= 10:
+        most_common_gender = Counter(gender_history).most_common(1)[0][0]
+        message_center.add_face_detection(most_common_gender)
+        gender_history.clear()
+
 
     # Object detection
     # objects: crosswalk, speedlimit, stop, trafficlight
@@ -55,7 +69,7 @@ def image_processing(message_center):
             class_objects[0], bounding_boxes[0], confidence_probs[0]
         )
         if class_objects[0] == 3:
-            print(f"[INFO] Detected traffic light")
+            # print(f"[INFO] Detected traffic light")
             
             
             hsv = cv2.cvtColor(frame, cv2.COLOR_BGR2HSV)
@@ -73,6 +87,13 @@ def image_processing(message_center):
             # Sanity check: ensure region is non-empty
             if x2 > x1 and y2 > y1:
                 hsv_roi = hsv[y1:y2, x1:x2]
+            else:
+                status = False # red light =False, green light = True
+                print(f"[ERROR] Invalid Traffic Light Box")
+                message_center.add_traffic_light(status)
+                return
+
+                
             
             lower_red1 = np.array([170, 70, 50])
             upper_red1 = np.array([180, 255, 255])
@@ -97,17 +118,17 @@ def image_processing(message_center):
             
             if green_pixels >= min_green_pixels and green_pixels > red_pixels:
                 status = True
-                print(f"[INFO] Green")
+                # print(f"[INFO] Green")
 
             else:
                 
                 status = False # red light =False, green light = True
-                print(f"[INFO] Red")
+                # print(f"[INFO] Red")
             
             
 
             message_center.add_traffic_light(status)
-        for box, cls, conf in zip(bounding_boxes, class_objects, confidence_probs):
+        '''for box, cls, conf in zip(bounding_boxes, class_objects, confidence_probs):
             x, y, w, h = map(int, box)
             label = f"{cls}: {conf:.2f}"
 
@@ -127,7 +148,7 @@ def image_processing(message_center):
         # Show the frame in a window
         cv2.imshow("Live View", frame)
         cv2.waitKey(1)  # Required for real-time display
-
+        '''
     else:
         message_center.add_no_object_detected()
 
@@ -147,7 +168,12 @@ def face_processing(frame):
     blob = cv2.dnn.blobFromImage(frame, 1.0, (300, 300), [104, 117, 123], True, False)
 
     face_detector = cv2.dnn.readNet('./cfg/opencv_face_detector_uint8.pb', './cfg/opencv_face_detector.pbtxt')
+    face_detector.setPreferableBackend(cv2.dnn.DNN_BACKEND_OPENCV)
+    face_detector.setPreferableTarget(cv2.dnn.DNN_TARGET_CPU)
+
     gender_detector = cv2.dnn.readNet('./cfg/gender_net.caffemodel', './cfg/gender_deploy.prototxt')
+    gender_detector.setPreferableBackend(cv2.dnn.DNN_BACKEND_OPENCV)
+    gender_detector.setPreferableTarget(cv2.dnn.DNN_TARGET_CPU)
 
     face_detector.setInput(blob)
     detections = face_detector.forward()
@@ -156,7 +182,7 @@ def face_processing(frame):
     detections = sorted(detections[0, 0, :, :], key=lambda x: x[2], reverse=True)
     if len(detections) == 0:
         print("[WARN] No face detections found.")
-        return 0
+        return -1
     detection = detections[0]
 
 

@@ -117,7 +117,7 @@ class MessageCenter:
             _pack_ = 1
             _fields_ = [("status", ctypes.c_int)]
 
-        traffic_light_status = TrafficLightStatus(status)
+        traffic_light_status.status = TrafficLightStatus(status)
 
         # Debug: print size
         #print(f"Python struct size: {ctypes.sizeof(traffic_light_status)}")  # Should be 1
@@ -125,8 +125,8 @@ class MessageCenter:
         self.add_message(TRAFFIC_LIGHT_STATUS, ctypes.sizeof(traffic_light_status), traffic_light_status)
 
     def add_face_detection(self, status):
-        #if self.debug:
-        print(f"Adding face detection: {status}")
+        if self.debug:
+            print(f"Adding face detection: {status}")
         
         # create a ctypes structure for the face detection status (1 int)
         class FaceDetectionStatus(ctypes.Structure):
